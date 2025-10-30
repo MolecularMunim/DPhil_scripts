@@ -323,16 +323,25 @@ for idx, row in df.iterrows():
 output_df = pd.DataFrame(results)
 
 merged_df = output_df.merge(splicejunctions, on="ID", how="left")
+
 def check_nmd(row):
+    # If stop_index is blank (NaN or empty), return blank for NMD
+    if pd.isna(row['stop_index']) or str(row['stop_index']).strip() == "":
+        return ""
+    
+    # If splice_junctions is missing, NMD = "Yes"
     if pd.isna(row['splice_junctions']):
-        return "Yes"  # No splice junctions to compare
+        return "Yes"
     
     try:
-        splice_sites = [int(x) for x in str(row['splice_junctions']).split(',') if x.strip().isdigit()]
+        splice_sites = [
+            int(x) for x in str(row['splice_junctions']).split(',')
+            if x.strip().isdigit()
+        ]
     except ValueError:
         return "Yes"  # skip invalid entries
     
-    stop_index = row['stop_index']
+    stop_index = int(row['stop_index'])
     
     # Check if any splice junction is within ±55 of stop_index
     for site in splice_sites:
@@ -341,10 +350,16 @@ def check_nmd(row):
     
     return "Yes"
 
-# Apply to merged_df
+
+# Apply NMD logic
 merged_df["NMD"] = merged_df.apply(check_nmd, axis=1)
 
-# Drop splice_junctions and print
+# Replace non-blank stop_index values with ✓
+merged_df["stop_index"] = merged_df["stop_index"].apply(
+    lambda x: "✓" if not (pd.isna(x) or str(x).strip() == "") else ""
+)
+
+# Drop splice_junctions and save to file
 final_df = merged_df.drop(columns=["splice_junctions"])
 final_df.to_csv("output.tsv", sep="\t", index=False)
 
